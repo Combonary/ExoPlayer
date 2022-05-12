@@ -18,6 +18,8 @@ package com.google.android.exoplayer2.demo;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.support.v4.media.MediaDescriptionCompat;
+import android.support.v4.media.session.MediaSessionCompat;
 import android.util.Pair;
 import android.view.KeyEvent;
 import android.view.View;
@@ -39,6 +41,8 @@ import com.google.android.exoplayer2.audio.AudioAttributes;
 import com.google.android.exoplayer2.drm.FrameworkMediaDrm;
 import com.google.android.exoplayer2.ext.ima.ImaAdsLoader;
 import com.google.android.exoplayer2.ext.ima.ImaServerSideAdInsertionMediaSource;
+import com.google.android.exoplayer2.ext.mediasession.MediaSessionConnector;
+import com.google.android.exoplayer2.ext.mediasession.TimelineQueueNavigator;
 import com.google.android.exoplayer2.mediacodec.MediaCodecRenderer.DecoderInitializationException;
 import com.google.android.exoplayer2.mediacodec.MediaCodecUtil.DecoderQueryException;
 import com.google.android.exoplayer2.offline.DownloadRequest;
@@ -63,7 +67,8 @@ public class PlayerActivity extends AppCompatActivity
     implements OnClickListener, StyledPlayerControlView.VisibilityListener {
 
   // Saved instance state keys.
-
+  private MediaSessionCompat mediaSession;
+  private MediaSessionConnector mediaSessionConnector;
   private static final String KEY_TRACK_SELECTION_PARAMETERS = "track_selection_parameters";
   private static final String KEY_SERVER_SIDE_ADS_LOADER_STATE = "server_side_ads_loader_state";
   private static final String KEY_ITEM_INDEX = "item_index";
@@ -150,6 +155,9 @@ public class PlayerActivity extends AppCompatActivity
       if (playerView != null) {
         playerView.onResume();
       }
+      if(mediaSession != null){
+        mediaSession.setActive(true);
+      }
     }
   }
 
@@ -181,6 +189,9 @@ public class PlayerActivity extends AppCompatActivity
     if (Util.SDK_INT > 23) {
       if (playerView != null) {
         playerView.onPause();
+      }
+      if(mediaSession != null){
+        mediaSession.setActive(false);
       }
       releasePlayer();
     }
@@ -288,6 +299,19 @@ public class PlayerActivity extends AppCompatActivity
       player.addAnalyticsListener(new EventLogger(trackSelector));
       player.setAudioAttributes(AudioAttributes.DEFAULT, /* handleAudioFocus= */ true);
       player.setPlayWhenReady(startAutoPlay);
+      mediaSession = new MediaSessionCompat(this, "sample");
+      mediaSessionConnector = new MediaSessionConnector(mediaSession);
+      mediaSessionConnector.setPlayer(player);
+      mediaSessionConnector.setQueueNavigator(new TimelineQueueNavigator(mediaSession) {
+        @Override
+        public MediaDescriptionCompat getMediaDescription(Player player, int windowIndex) {
+          return new MediaDescriptionCompat.Builder()
+              .setTitle("MediaDescription title")
+              .setDescription("Media description for " + windowIndex)
+              .setSubtitle("MediaDescription subtitle")
+              .build();
+        }
+      });
       playerView.setPlayer(player);
       serverSideAdsLoader.setPlayer(player);
       debugViewHelper = new DebugTextViewHelper(player, debugTextView);
@@ -380,6 +404,9 @@ public class PlayerActivity extends AppCompatActivity
       player = null;
       playerView.setPlayer(/* player= */ null);
       mediaItems = Collections.emptyList();
+      if(mediaSession != null){
+        mediaSession.release();
+      }
     }
     if (clientSideAdsLoader != null) {
       clientSideAdsLoader.setPlayer(null);
